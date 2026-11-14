@@ -1,0 +1,222 @@
+/* Coccinelle cinematic risk states. Progressive enhancement over storm-effects.css. */
+
+.stat-storm.weather-high {
+  background: radial-gradient(circle at 90% 5%, #a55b282d, transparent 72%), #15212c;
+  border-color: #976143;
+}
+.stat-storm.weather-critical {
+  background: radial-gradient(circle at 90% 0, #da474a35, transparent 76%), #201d28;
+  border-color: #d66c72;
+  box-shadow: inset 0 0 24px #e44a4b13, 0 0 22px #b4444916;
+  animation: cinematicCardBreath 2.5s ease-in-out infinite;
+}
+.stat-storm.weather-critical .stat-label svg { color: #ffacb0; }
+
+.insights-panel.weather-high {
+  border-color: #b97945;
+  box-shadow: inset 0 0 36px #de793627, 0 0 20px #a7642417;
+}
+.insights-panel.weather-critical {
+  border-color: #db707c;
+  box-shadow: inset 0 0 50px #dc4e5a35, 0 0 33px #d0464d22;
+}
+.insights-panel.weather-high .alert-box,
+.insights-panel.weather-critical .alert-box {
+  backdrop-filter: blur(9px);
+  background: #382b2be6;
+}
+.insights-panel.weather-critical .alert-box { border-color: #b75863; }
+.insights-panel.weather-critical .new-indicator { color: #ff9099; animation: cinematicAlertBreathe 1.5s ease-in-out infinite; }
+
+.insights-panel.weather-high .storm-ring {
+  box-shadow: 0 0 0 7px #fa9c4933, 0 0 56px #ef965255;
+}
+.insights-panel.weather-critical .storm-ring {
+  box-shadow: 0 0 0 9px #fc78802d, 0 0 75px #e6516488;
+  animation: cinematicRingBreathe 2s ease-in-out infinite;
+}
+
+.storm-atmosphere.storm-high {
+  background: radial-gradient(circle at 75% 30%, #b55f372d, transparent 60%);
+  --wind-duration: 2.55s;
+  --wind-opacity: .62;
+}
+.storm-atmosphere.storm-critical {
+  background: radial-gradient(circle at 82% 25%, #d347534d, transparent 68%),
+              linear-gradient(145deg, transparent 30%, #9e394125);
+  --wind-duration: 1.5s;
+  --wind-opacity: .8;
+}
+.storm-high .storm-cloud-layer { opacity: .17; filter: blur(26px); }
+.storm-critical .storm-cloud-layer { opacity: .25; filter: blur(19px); }
+.storm-high .storm-radar-sweep,
+.storm-critical .storm-radar-sweep { opacity: .4; }
+
+.storm-pressure-grid {
+  position: absolute; inset: 0; opacity: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 36px, #f4a9a417 37px, transparent 38px),
+    repeating-linear-gradient(90deg, transparent 0 36px, #f4a9a417 37px, transparent 38px);
+  transform: perspective(500px) rotateX(12deg) scale(1.2);
+}
+.storm-high .storm-pressure-grid { opacity: .45; }
+.storm-critical .storm-pressure-grid { opacity: .7; }
+
+.storm-vortex {
+  position: absolute; width: 320px; height: 320px;
+  top: 25px; right: -95px; border-radius: 50%;
+  background: conic-gradient(from 20deg, transparent 0 38deg, currentColor 64deg, transparent 102deg,
+              transparent 158deg, currentColor 189deg, transparent 228deg, currentColor 281deg, transparent 320deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 25%, #000 35%, #000 48%, transparent 63%);
+  mask-image: radial-gradient(circle, transparent 25%, #000 35%, #000 48%, transparent 63%);
+  opacity: 0; animation: cinematicVortex 7s linear infinite;
+}
+.storm-high .storm-vortex { opacity: .29; }
+.storm-critical .storm-vortex { opacity: .55; animation-duration: 3.5s; }
+.storm-vortex > span {
+  position: absolute; inset: 12%; border: 1px dashed currentColor; border-radius: 50%; opacity: .7;
+}
+.storm-vortex > span:nth-child(2) { inset: 26%; border-style: solid; opacity: .6; }
+.storm-vortex > span:nth-child(3) { inset: 39%; border-style: dashed; opacity: .6; }
+
+.storm-atmosphere .storm-gust {
+  height: 2px; border-radius: 20px;
+  background: linear-gradient(90deg, transparent, currentColor 40%, #ffffffcc 60%, transparent);
+  box-shadow: 0 0 13px currentColor;
+  animation: cinematicGust var(--wind-duration) linear infinite;
+  animation-delay: var(--delay);
+}
+.storm-rain {
+  display: none; position: absolute; left: var(--left); top: -90px;
+  width: 2px; height: 65px; border-radius: 4px;
+  background: linear-gradient(180deg, transparent, currentColor 70%, transparent);
+  filter: drop-shadow(0 0 6px currentColor);
+  animation: cinematicRain var(--duration) linear infinite;
+  animation-delay: var(--delay);
+}
+.storm-critical .storm-rain { display: block; opacity: .46; }
+.storm-critical .storm-lightning-glow { animation: cinematicLightning 5.5s ease-in-out infinite; }
+
+.storm-sound-preview {
+  display: inline-grid; place-items: center;
+  width: 25px; height: 25px; border-radius: 6px;
+  border: 1px solid #47736c; background: #24463f; color: #9ff8dc;
+}
+.storm-sound-preview:hover { background: #346b5a; }
+
+.market-graph { position: relative; isolation: isolate; }
+.market-graph .recharts-responsive-container { position: relative; z-index: 2; }
+.market-impact-field { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.market-impact-glow,
+.market-impact-scan,
+.market-impact-wave { position: absolute; pointer-events: none; opacity: 0; }
+.market-graph.weather-high .market-impact-glow {
+  inset: 0; opacity: .32;
+  background: radial-gradient(ellipse at 73% 57%, #d17d414a, transparent 70%);
+}
+.market-graph.weather-critical .market-impact-glow {
+  inset: 0; opacity: .62;
+  background: radial-gradient(ellipse at 70% 52%, #e75c6559, transparent 72%);
+}
+.market-graph.weather-high .market-impact-scan,
+.market-graph.weather-critical .market-impact-scan {
+  top: 0; bottom: 0; width: 28%;
+  background: linear-gradient(90deg, transparent, #eeaaa818, #ffa9af4d, transparent);
+  transform: skewX(-22deg);
+  animation: cinematicMarketScan 4.6s linear infinite;
+}
+.market-graph.weather-critical .market-impact-scan { animation-duration: 2.8s; }
+.market-graph.weather-critical .market-impact-wave {
+  top: 50%; left: 69%; width: 150px; height: 150px;
+  border: 2px solid #ff8f9b; border-radius: 50%;
+  box-shadow: 0 0 25px #ff8b9999;
+  animation: cinematicShockwave 1.9s ease-out 1;
+}
+.chart-panel.weather-high { border-color: #86573e; }
+.chart-panel.weather-critical { border-color: #ba5b66; box-shadow: inset 0 0 35px #b6445316; }
+
+.market-strike-banner {
+  position: absolute; top: 12px; right: 15px; z-index: 5;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #a36a46; border-radius: 7px;
+  background: #382824e8; color: #fbd0a5; padding: 9px 11px;
+  font-size: 9px; letter-spacing: .085em;
+  box-shadow: 0 6px 22px #0004;
+  backdrop-filter: blur(9px);
+  animation: cinematicBannerEnter .45s ease-out 1;
+}
+.market-strike-banner strong { font-weight: 900; white-space: nowrap; }
+.market-strike-banner small { color: #d5a889; font-size: 9px; }
+.market-strike-banner.weather-critical {
+  border-color: #df777f; background: #45252de8; color: #ffc6c8;
+  box-shadow: 0 5px 28px #d653592a;
+}
+.market-strike-banner.weather-critical svg { animation: cinematicAlertBreathe 1.2s ease-in-out infinite; }
+
+.strike-button {
+  display: inline-flex; align-items: center; gap: 7px;
+  white-space: nowrap; padding: 10px; border-radius: 7px;
+  font-size: 10px; font-weight: 820;
+  border: 1px solid #a9545f; color: #ffbdc2;
+  background: #3a242d;
+}
+.strike-button:hover { background: #5a2e39; border-color: #ee8790; }
+.strike-button svg { color: #ff8898; }
+
+@keyframes cinematicGust {
+  0% { transform: translate3d(-20px, 32px, 0) rotate(-12deg); opacity: 0; }
+  17%, 75% { opacity: var(--wind-opacity); }
+  100% { transform: translate3d(900px, -110px, 0) rotate(-12deg); opacity: 0; }
+}
+@keyframes cinematicRain {
+  from { transform: translate3d(90px, -100px, 0) rotate(14deg); opacity: 0; }
+  30%, 80% { opacity: .5; }
+  to { transform: translate3d(-70px, 610px, 0) rotate(14deg); opacity: 0; }
+}
+@keyframes cinematicVortex { to { transform: rotate(360deg); } }
+@keyframes cinematicLightning {
+  0%, 86%, 90%, 93%, 100% { opacity: 0; }
+  87% { opacity: .31; }
+  91% { opacity: .55; }
+}
+@keyframes cinematicMarketScan {
+  0% { left: -45%; opacity: 0; }
+  15%, 80% { opacity: 1; }
+  100% { left: 125%; opacity: 0; }
+}
+@keyframes cinematicShockwave {
+  0% { transform: translate(-50%, -50%) scale(.25); opacity: .85; }
+  100% { transform: translate(-50%, -50%) scale(3.3); opacity: 0; }
+}
+@keyframes cinematicBannerEnter {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes cinematicRingBreathe {
+  50% { box-shadow: 0 0 0 14px #fc788020, 0 0 100px #e65164a0; }
+}
+@keyframes cinematicCardBreath {
+  50% { box-shadow: inset 0 0 30px #e44a4b19, 0 0 32px #b4444933; }
+}
+@keyframes cinematicAlertBreathe { 50% { opacity: .4; } }
+
+@media (max-width: 1390px) {
+  .replay-options { gap: 6px; }
+  .strike-button, .jump-button { padding: 9px 7px; font-size: 9px; }
+  .insights-panel .section-heading { flex-wrap: wrap; }
+  .insights-panel .section-aside { margin-left: auto; }
+  .storm-meta { gap: 6px; }
+}
+@media (max-width: 720px) {
+  .storm-vortex { right: -155px; }
+  .market-strike-banner { right: 6px; padding: 7px; gap: 4px; font-size: 8px; }
+  .market-strike-banner small { display: none; }
+  .replay-options { flex-wrap: wrap; justify-content: flex-end; }
+  .strike-button { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .storm-vortex, .storm-rain, .market-impact-scan, .market-impact-wave { display: none !important; }
+  .storm-gust, .storm-lightning-glow, .market-strike-banner,
+  .insights-panel.weather-critical .storm-ring, .stat-storm.weather-critical,
+  .market-strike-banner.weather-critical svg { animation: none !important; }
+}
