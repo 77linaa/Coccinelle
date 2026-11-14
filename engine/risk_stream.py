@@ -37,6 +37,9 @@ def stream(
 
     Quotes before `start` are still processed (they warm up the
     indicators, as a live system would have seen them) but not yielded.
+
+    Contract with the backend: it passes these arguments BY POSITION, so
+    never reorder them; add new parameters only at the end.
     """
     start_ns = pd.Timestamp(start, tz="UTC").value if start else None
     engine = SignalEngine()

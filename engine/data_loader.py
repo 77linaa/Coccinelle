@@ -21,8 +21,10 @@ from typing import Iterator
 
 import pandas as pd
 
-DEFAULT_ZIP = Path("data/raw/Challenge1.zip")
-DEFAULT_OUT = Path("data/processed")
+# Absolute, so it works whatever directory the caller runs from.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ZIP = REPO_ROOT / "data" / "raw" / "Challenge1.zip"
+DEFAULT_OUT = REPO_ROOT / "data" / "processed"
 
 # e.g. USDJPY_USD_SPOT_SPOT_1000000_20260825.csv
 #      EURUSD_EUR_FORWARD_1M_1000000_20260701.csv

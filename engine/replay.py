@@ -18,7 +18,8 @@ from typing import Iterable, Iterator, NamedTuple
 import numpy as np
 import pandas as pd
 
-DEFAULT_DATA = Path("data/processed")
+# Absolute, so it works whatever directory the caller runs from.
+DEFAULT_DATA = Path(__file__).resolve().parents[1] / "data" / "processed"
 COLUMNS = ["timestamp", "pair", "tenor", "close_bid", "close_ask", "close_mid"]
 CHUNK = 100_000  # rows converted to Python objects at a time (bounds memory)
 
