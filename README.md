@@ -55,7 +55,7 @@ Traditional monitoring often shows traders what has already happened.
 - Applies deterministic Risk Officer checks before approving simulated actions.
 - Provides a comparison between protected and unprotected outcomes.
 
-### ⚖️ 5. Human vs Coccinelle
+### ⚖️ 5. Judge vs Coccinelle
 
 An interactive paper-trading comparison between:
 
@@ -110,7 +110,7 @@ The dashboard compares outcomes such as equity, margin-buffer survival, and inte
         - Margin Forecast
         - Exposure Dashboard
         - Protection Lab
-        - Human vs Coccinelle
+        - Judge vs Coccinelle
 ```
 
 ---
@@ -263,7 +263,7 @@ For the demonstration:
 6. Observe the risk engine identify worsening market conditions.
 7. Examine the margin forecast and exposure dashboard.
 8. Open **Protection Lab** to compare simulated protective actions.
-9. Use **Human vs Coccinelle** to compare paper-trading outcomes.
+9. Use **Judge vs Coccinelle** to compare paper-trading outcomes.
 
 In the backend's historical USD/JPY risk analysis, the market transitions through:
 
