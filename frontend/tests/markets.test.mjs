@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { createServer } from 'vite';
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
+const vite = await createServer({ optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
 after(async () => { await vite.close(); });
 
 const { demoFrame, HISTORICAL_QUOTES, REPLAY_LENGTH } = await vite.ssrLoadModule('/src/lib/demoMarket.js');
@@ -47,7 +47,7 @@ test('risk and sample portfolio metrics remain finite for all markets', () => {
 });
 
 test('the one-click USD/JPY strike marker leads to a real critical replay frame', () => {
-  const index = HISTORICAL_QUOTES.USDJPY.findIndex((quote) => quote.timestamp === '2026-07-30T13:40:00Z');
+  const index = HISTORICAL_QUOTES.USDJPY.findIndex((quote) => quote.timestamp === '2026-07-30T13:38:00Z');
   assert.ok(index >= 0);
   const strike = demoFrame('USDJPY', index);
   assert.equal(strike.storm.level, 'CRITICAL');

@@ -1,6 +1,6 @@
 # Coccinelle — Frontend (Person C / Rayane)
 
-React + Vite + Tailwind CSS + Recharts. This is a **standalone frontend** built while Meryem's risk engine and Helina's FastAPI backend are in progress.
+React + Vite + Tailwind CSS + Recharts, integrated with Helina's FastAPI API and Meryem's streaming engine. Standalone fallback remains available.
 
 ## Start it
 
@@ -12,57 +12,46 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-The app tries `ws://localhost:8000/ws` for ~1.8 seconds. If that endpoint doesn't deliver valid spot ticks, it switches to an **interactive local demo**. Replay controls, market chart, warning cards, margin graph and protection simulator work in demo mode.
+The app connects to `ws://localhost:8000/ws`, automatically retries on disconnect, and switches to an **interactive local demo** when live replay ticks are unavailable. Replay controls, market chart, warning cards, margin graph and protection simulator work in demo mode.
 
 The three selectable spot markets (USD/JPY, EUR/USD, USD/SGD) each have **91 real SGX challenge quotes from 30 July 2026, sampled every two minutes between 12:00 and 15:00 UTC**. All three markets use the same replay clock; switching pairs changes the chart and pair-specific score without resetting playback. The sample portfolio contains fictional positions in all three pairs. Its margin rules, scores, forecast probabilities and timing values in demo mode are **illustrative**. No orders are placed.
 
-## Backend integration handoff
+## Real backend integration (V5)
 
-**Please agree this message shape with Helina/Meryem before changing backend/frontend independently.** `src/lib/protocol.js` accepts some snake_case aliases, but the canonical message is:
+Actual FastAPI wire protocol in `backend/sentinel/api.py`:
 
-```json
-{
-  "type": "tick",
-  "timestamp": "2026-07-30T13:30:00Z",
-  "pair": "USDJPY",
-  "product": "SPOT",
-  "tenor": "SPOT",
-  "quote": {"mid": 162.779, "bid": 162.777, "ask": 162.781},
-  "storm": {"score": 67, "level": "HIGH", "drivers": ["Volatility above baseline", "Adverse position move"]},
-  "portfolio": {
-    "equity": 120000, "maintenanceMargin": 105000, "buffer": 15000,
-    "pnl": -20000, "notional": 1000000, "leverage": 7.14,
-    "exposure": [{"pair": "USD/JPY", "side": "Long USD", "notional": 1000000, "share": 1}]
-  },
-  "forecast": {
-    "breachProbability": 0.22, "horizonHours": 24,
-    "cone": [{"hour":"0h","lower":115000,"median":120000,"upper":125000}]
-  },
-  "latency": {"latestMs": 13, "medianMs": 14, "p99Ms": 27},
-  "tideTable": [{"hour": "13:00", "risk": "HIGH"}]
-}
+- WebSocket `type: "hello"` provides replay state, fictional portfolio and optional forecast.
+- WebSocket `type: "tick"` puts `ts`, `mid`, `pair`, `tenor`, `score`, `level`, `spread_bps`, `latency_us` inside **`market`**, plus separate `portfolio` (sometimes null) and `backend_ms` fields.
+- `green/yellow/amber/red` are mapped to `LOW/ELEVATED/HIGH/CRITICAL`.
+- `type: "forecast"` is **separate** from ticks; its percentile arrays are downsampled to seven points without inventing forecasts.
+- Forecast timestamps are checked against the currently replayed UTC window before display; an old in-flight model result from a previous jump is discarded. Late AI explanations can only attach to their matching level-change alert.
+- `type: "alert"` and `type: "explanation"` are consumed separately, including template or AI-generated plain-English alert text.
+- Real backend p50/p99 values are derived from the last 200 price-processing latency observations. They are not network round-trip times.
+- FastAPI does **not** consume WebSocket commands. Play, pause, speed, jump, `/simulate` (read-only preview), and `/protect` (paper judge action) use HTTP `POST`.
+- The Human vs Coccinelle outcome panel uses the backend's `GET /protect`, WebSocket `type: "protection"` and per-tick `protection` summaries. It shows unprotected, judge and first-red-signal branches, backend-reported lowest observed margin buffers, breaches, current equity and lead time. `POST /protect/reset` lets a judge try again on the same timeline.
+- The backend cannot run a Coccinelle branch until the judge selects the action to compare. The comparison is **retrospective and paper-only**, not proof of a fully autonomous hedge or a real trade. If no red signal has occurred, the panel explicitly shows a pending state.
+
+Each pair has its own spot quote buffer. **Currently the backend emits USD/JPY only by default**; the other two selectable pairs retain their authentic SGX historical frontend replay. In `SENTINEL_SOURCE=mock` mode, USD/JPY is visibly labelled synthetic. No live orders are placed. Backend portfolio snapshots publish aggregate accounting but not position breakdown; the UI explicitly says so instead of showing fictional extra positions as if they came from the backend. The backend may also have no forecasts until Parquet files are generated.
+
+For a quick Windows PowerShell integrated run from the repo root:
+
+```powershell
+py -m venv backend\.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+$env:SENTINEL_SOURCE = "mock"
+$env:SENTINEL_AI = "off"
+.\backend\.venv\Scripts\python.exe -m uvicorn sentinel.api:app --app-dir backend --reload
 ```
 
-The frontend accepts **USD/JPY, EUR/USD and USD/SGD spot** frames. Each pair has a separate live quote buffer, so a USD/JPY quote will never be plotted on a EUR/USD chart. FX forward messages are ignored until a tenor-specific interface is implemented. If the backend is live for only one pair, selecting a pair without live ticks transparently shows its historical replay instead of inventing live values.
+In **another PowerShell terminal**:
 
-### WebSocket controls sent by frontend
-
-```json
-{"type":"play"}
-{"type":"pause"}
-{"type":"reset"}
-{"type":"speed","multiplier":5}
-{"type":"jump","timestamp":"2026-07-30T13:24:00Z"}
-{"type":"protect","action":"reduce_50","timestamp":"2026-07-30T13:30:00Z","pair":"USDJPY"}
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-Protect actions are `none`, `reduce_50`, and `close_all`. The backend remains the final authority for pricing, limits, execution and post-action comparisons. Optionally return:
-
-```json
-{"type":"protection_result","payload":{"approved":true,"message":"Paper reduction accepted"}}
-```
-
-The WebSocket URL can be overridden in `.env` by setting `VITE_COCCINELLE_WS_URL`. Restart Vite after changing env values.
+With processed data in `data/processed`, switch `$env:SENTINEL_SOURCE = "engine"` and restart the backend. Use `python -m engine.data_loader --zip path\to\Challenge1.zip` to generate the ignored Parquet files. Test `http://localhost:8000/health` before judging. Default frontend URLs are WebSocket `ws://localhost:8000/ws` and HTTP `http://localhost:8000`; override via `VITE_COCCINELLE_WS_URL` and `VITE_COCCINELLE_API_URL` in `.env` when necessary.
 
 ## UI scope already done
 
@@ -76,21 +65,21 @@ The WebSocket URL can be overridden in `.env` by setting `VITE_COCCINELLE_WS_URL
 - Margin forecast cone with a maintenance-margin reference line.
 - Exposure X-Ray and portfolio position breakdown.
 - Tide-table strip.
-- Interactive paper protection scenario comparison.
+- Interactive paper protection scenario comparison; HTTP risk-officer previews in backend mode.
+- Responsive Human vs Coccinelle three-account survival comparison with honest waiting/veto/incomplete-replay states and reset.
 - Judge-vs-Coccinelle toggle with captured action timestamp.
 - Replay pause/play/reset, jump-to-storm, speed 1×/5×/20× and demo scrubber.
-- Two demonstration shortcuts: **Before the storm** (13:24 UTC) and **Strike moment** (USD/JPY at 13:40 UTC, a genuinely critical historical replay frame).
-- Automatic backend WebSocket connection with demo fallback.
+- Two demonstration shortcuts: **Before the storm** (13:34 UTC) and **Strike moment** (USD/JPY at **13:38 UTC**, the real SGX engine's first red signal on 30 July 2026, score 88.2). Level changes at 13:36 yellow, 13:37 amber and 13:38 red in the engine stream; frontend fixture scores are illustrative and do not use the identical scoring algorithm.
+- Automatic backend WebSocket connection, retry, HTTP replay controls, and demo fallback.
 
 ## Before the judges arrive
 
-1. Confirm the message contract, URL, signal levels and timing fields with backend teammates.
-2. Replace mock forecast/portfolio values with actual backend values and ensure all labels remain truthful.
-3. Agree when the portfolio is seeded and when its margin rules apply.
-4. Test play/pause/speed/jump on a full end-to-end USD/JPY stream, then check pair switching with EUR/USD and USD/SGD live ticks.
-5. Make `protect` compare *identical* future scenarios with trading costs.
-6. Ensure p50/p99 is computed by the real pipeline, not the demo fixture.
-7. Rehearse the judge interaction and keep a local screen recording as backup.
+1. Ask Meryem to generate `data/processed` from the SGX archive, otherwise the engine and Monte Carlo cannot run.
+2. Confirm Helina's portfolio is USD/JPY-only and that the backend forecast and Risk Officer have sufficiently warmed up.
+3. Test play/pause/speed/jump in the browser with backend actually running. The frontend's 1× / 5× / 20× labels correspond to 60× / 300× / 1200× historical clock speed.
+4. If time permits, have Helina include `exposure` summaries in backend portfolio snapshots and Meryem expand the backend stream to all three spot pairs. Until then the UI labels limitations explicitly.
+5. Test `/simulate` and `/protect`, including a 21:00 UTC forced-sale veto, before demonstrating Judge vs Coccinelle. In Judge Mode, choose a reduction/close, press Protect, then let the replay cross a **real backend red signal**; the third branch appears once computed. A frontend fixture's "Strike moment" does not guarantee a backend red signal at exactly the same timestamp.
+6. Rehearse the judge interaction and keep a local screen recording as backup.
 
 ## Regenerate authentic price fixture
 
@@ -109,4 +98,4 @@ npm test
 npm run build
 ```
 
-The tests check that the three SGX fixtures use the same timestamps, spot/forward filtering is safe, the sample portfolio and risk values stay consistent across pair switches, and the UI exposes all three markets. Build output is in `dist/`. No publishing or live trading is configured.
+The tests check the three SGX fixtures, UI navigation, the real FastAPI tick/forecast contract, HTTP paper-action shape, survival-card states, stale forecast rejection and late-explanation gating. Build output is in `dist/`. No publishing or live trading is configured.

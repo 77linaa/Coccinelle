@@ -14,6 +14,7 @@ import { useMarketStream } from './hooks/useMarketStream.js';
 import { useActiveSection } from './hooks/useActiveSection.js';
 import { useStormSound } from './hooks/useStormSound.js';
 import { MARKETS, marketById, normalisePair } from './lib/markets.js';
+import RaceComparison from './components/RaceComparison.jsx';
 
 const fmt = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const usd = (value, digits = 0) => value == null ? '—' : `${value < 0 ? '−' : ''}$${fmt(Math.abs(value), digits)}`;
@@ -35,7 +36,7 @@ function SectionTitle({ eyebrow, title, aside, icon: Icon }) {
   </div>;
 }
 
-function Sidebar({ source, selectedPair, onPairChange, pairSnapshots, activeSection, onNavigate }) {
+function Sidebar({ source, backendSource, selectedPair, onPairChange, pairSnapshots, activeSection, onNavigate }) {
   const links = [
     { icon: Gauge, text: 'Overview', id: 'overview' },
     { icon: Activity, text: 'Storm Monitor', id: 'market' },
@@ -61,23 +62,23 @@ function Sidebar({ source, selectedPair, onPairChange, pairSnapshots, activeSect
           aria-pressed={selectedPair === market.id}
           className={`watch-pair ${selectedPair === market.id ? 'selected' : ''}`}>
           <div><span className="pair-bullet" />{market.label}</div>
-          <span className="watch-pair-quote"><b>{fmt(snapshot?.frame.quote.mid, market.digits)}</b><small>{snapshot?.source === 'live' ? 'LIVE' : 'REPLAY'}</small></span>
+          <span className="watch-pair-quote"><b>{fmt(snapshot?.frame.quote.mid, market.digits)}</b><small>{snapshot?.source === 'live' ? (backendSource === 'mock' ? 'MOCK' : 'ENGINE') : 'REPLAY'}</small></span>
         </button>;
       })}
     </div>
     <div className="sidebar-bottom">
-      <div className="system-status"><span className="status-circle" /><div><b>{source === 'live' ? 'Backend connected' : 'Demo environment'}</b><small>{source === 'live' ? 'Streaming risk engine' : 'Real historical FX quotes'}</small></div></div>
+      <div className="system-status"><span className="status-circle" /><div><b>{source === 'live' ? 'Backend connected' : 'Demo environment'}</b><small>{source === 'live' ? (backendSource === 'mock' ? 'Synthetic backend prices' : 'SGX engine historical replay') : 'SGX historical fixture quotes'}</small></div></div>
       <div className="sidebar-caption">DurHack 2026 <span>•</span> SGX Challenge 01</div>
     </div>
   </aside>;
 }
 
-function Topbar({ source }) {
+function Topbar({ source, backendSource }) {
   return <header className="topbar">
     <div className="breadcrumb"><span>Workspace</span><ChevronRight size={14}/><strong>Command Centre</strong></div>
     <div className="topbar-right">
       <span className="topbar-date"><Clock3 size={14} /> 30 JUL 2026 · UTC</span>
-      <Badge tone={source === 'live' ? 'safe' : 'warning'} pulse>{source === 'live' ? 'WEBSOCKET LIVE' : source === 'connecting' ? 'CONNECTING' : 'HISTORICAL DEMO'}</Badge>
+      <Badge tone={source === 'live' ? 'safe' : 'warning'} pulse>{source === 'live' ? (backendSource === 'mock' ? 'MOCK STREAM · CONNECTED' : 'ENGINE REPLAY · CONNECTED') : source === 'connecting' ? 'CONNECTING' : 'HISTORICAL DEMO'}</Badge>
       <div className="avatar">C</div>
     </div>
   </header>;
@@ -119,20 +120,20 @@ function StatCards({ current, source }) {
     <article className={`stat-card stat-storm weather-${current.storm.level.toLowerCase()}`}><div className="stat-label"><CloudLightning size={16} /> STORM INDEX <CircleHelp size={14} className="info-icon" /></div><div className="stat-main"><strong>{fmt(score)}<small>/100</small></strong><span className={`risk-text risk-${current.storm.level.toLowerCase()}`}>{levelLabel[current.storm.level] || current.storm.level}</span></div><div className="stat-footer">Market volatility & anomaly signals <ArrowUpRight size={15}/></div></article>
     <article className="stat-card"><div className="stat-label"><Shield size={16} /> MARGIN BUFFER</div><div className="stat-main"><strong className={p.buffer < 0 ? 'text-danger' : ''}>{usd(p.buffer)}</strong><span className={p.buffer < 0 ? 'negative-tag' : 'subtle-pill'}>{p.buffer < 0 ? 'BREACH' : 'AVAILABLE'}</span></div><div className="mini-meter"><span style={{ width: `${Math.max(0,Math.min(100,(bufferRatio ?? 0)*130))}%` }} /></div><div className="stat-footer">Equity {usd(p.equity)} <span>·</span> Required {usd(p.maintenanceMargin)}</div></article>
     <article className="stat-card"><div className="stat-label"><Waves size={16} /> MARGIN BREACH RISK</div><div className="stat-main"><strong>{prob == null ? '—' : `${Math.round(prob * 100)}%`}</strong><span className="subtle-pill">24H MODEL</span></div><div className="stat-footer">Estimated across simulated paths <ArrowRight size={14} /></div></article>
-    <article className="stat-card"><div className="stat-label"><Zap size={16} /> SIGNAL LATENCY</div><div className="stat-main"><strong>{current.latency.medianMs == null ? '—' : `${fmt(current.latency.medianMs)}ms`}</strong><span className="subtle-pill">P50</span></div><div className="stat-footer">P99: {current.latency.p99Ms == null ? '—' : `${fmt(current.latency.p99Ms)}ms`} <span>·</span> {source === 'live' ? 'Backend measured' : 'Illustrative timing'}</div></article>
+    <article className="stat-card"><div className="stat-label"><Zap size={16} /> SIGNAL LATENCY</div><div className="stat-main"><strong>{current.latency.medianMs == null ? '—' : `${fmt(current.latency.medianMs, source === 'live' ? 2 : 0)}ms`}</strong><span className="subtle-pill">P50</span></div><div className="stat-footer">P99: {current.latency.p99Ms == null ? '—' : `${fmt(current.latency.p99Ms, source === 'live' ? 2 : 0)}ms`} <span>·</span> {source === 'live' ? 'Backend-measured sample' : 'Illustrative timing'}</div></article>
   </div>;
 }
 
-function MarketChart({ frames, current, source }) {
+function MarketChart({ frames, current, source, backendSource }) {
   const market = marketById(current.pair);
   const stormy = current.storm.level === 'HIGH' || current.storm.level === 'CRITICAL';
   const chartColor = stormy ? '#ffaf89' : '#83efd6';
-  const data = useMemo(() => frames.map((frame) => ({ at: time(frame.timestamp), mid: frame.quote.mid, score: frame.storm.score })), [frames]);
+  const data = useMemo(() => frames.map((frame) => ({ at: time(frame.timestamp), mid: frame.quote.mid, score: frame.storm.score, level: frame.storm.level })), [frames]);
   const first = data[0]?.mid ?? current.quote.mid;
   const delta = first ? (current.quote.mid / first - 1) * 100 : 0;
-  const firstAlarm = data.find((row) => row.score >= 80);
+  const firstAlarm = data.find((row) => row.level === 'CRITICAL');
   return <section className={`panel chart-panel weather-${current.storm.level.toLowerCase()}`} id="market">
-    <SectionTitle eyebrow="MARKET INTELLIGENCE" title={<>{market.label} <span>Spot Market</span></>} icon={Activity} aside={<Badge tone="safe">SPOT · {source === 'live' ? 'LIVE FEED' : '2-MIN SAMPLE'}</Badge>} />
+    <SectionTitle eyebrow="MARKET INTELLIGENCE" title={<>{market.label} <span>Spot Market</span></>} icon={Activity} aside={<Badge tone="safe">SPOT · {source === 'live' ? (backendSource === 'mock' ? 'MOCK FEED' : 'ENGINE REPLAY') : '2-MIN SAMPLE'}</Badge>} />
     <div className="price-headline"><span>{fmt(current.quote.mid, market.digits)}</span><div className={`price-change ${delta < 0 ? 'down' : 'up'}`}>{delta < 0 ? <ArrowDownRight size={17}/> : <ArrowUpRight size={17}/>} {Math.abs(delta) < .005 ? '0.00%' : `${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`} <small>replay window</small></div></div>
     <div className={`market-graph weather-${current.storm.level.toLowerCase()}`} aria-label="Market price chart">
       <div className="market-impact-field" aria-hidden="true"><span className="market-impact-glow"/><span className="market-impact-scan"/><span className="market-impact-wave"/></div>
@@ -149,11 +150,11 @@ function MarketChart({ frames, current, source }) {
         </AreaChart>
       </ResponsiveContainer>
     </div>
-    <div className="chart-bottom"><div className="legend-item"><i className="legend-dot mint"/>{market.label} Mid</div><div className="legend-item"><i className="legend-line amber"/>Critical signal</div><div className="chart-hint">{source === 'live' ? 'Backend spot market stream' : 'SGX-supplied historical quotes · 30 Jul 2026'}</div></div>
+    <div className="chart-bottom"><div className="legend-item"><i className="legend-dot mint"/>{market.label} Mid</div><div className="legend-item"><i className="legend-line amber"/>Critical signal</div><div className="chart-hint">{source === 'live' ? (backendSource === 'mock' ? 'Synthetic API feed · development only' : 'SGX engine historical stream') : 'SGX-supplied historical quotes · 30 Jul 2026'}</div></div>
   </section>;
 }
 
-function RiskInsights({ current, source }) {
+function RiskInsights({ current, source, activeAlert }) {
   const level = current.storm.level;
   const { enabled, toggleSound, previewSound } = useStormSound(level);
   return <section className={`panel insights-panel weather-${level.toLowerCase()}`} data-storm-level={level}>
@@ -163,6 +164,7 @@ function RiskInsights({ current, source }) {
     <div className="alert-box"><div className="alert-box-title"><ShieldAlert size={17}/>{level === 'LOW' ? 'Market monitoring active' : 'Risk signal triggered'}<span className="new-indicator">{level === 'LOW' ? 'WATCHING' : 'ALERT'}</span></div><p>{level === 'LOW' ? `No critical signal for ${marketById(current.pair).label} at this timestamp. Coccinelle is tracking price, spread and volatility changes.` : `The latest ${marketById(current.pair).label} movement may threaten leveraged positions. Review exposure and margin headroom.`}</p></div>
     <div className="drivers-title">SIGNAL DRIVERS <span>{current.storm.drivers?.length || 0}</span></div>
     <div className="driver-list">{(current.storm.drivers || []).slice(0,3).map((driver, i) => <div key={i} className="driver-row"><span className="driver-check"><Check size={11}/></span><span>{driver}</span></div>)}</div>
+    {source === 'live' && activeAlert?.explanation?.text && <div className="model-note"><Sparkles size={14}/>{activeAlert.explanation.text} <small>({activeAlert.explanation.source === 'llm' ? 'AI explanation' : 'Rule-based explanation'})</small></div>}
     {source !== 'live' && <div className="model-note"><Info size={14}/> Scores and alerts are illustrative frontend signals.</div>}
   </section>;
 }
@@ -189,19 +191,20 @@ function Forecast({ current, source }) {
       </ResponsiveContainer>
     </div>
     <div className="forecast-legend"><span><i className="legend-line blue"/> Median equity</span><span><i className="legend-line coral"/> Maintenance margin</span><span><i className="legend-dot cyan"/> Scenario range</span></div>
-    <div className="model-note"><Info size={14}/>{source === 'live' ? 'Backend statistical model. Not a guaranteed prediction.' : 'Illustrative forecast until backend model is connected.'}</div>
+    <div className="model-note"><Info size={14}/>{source === 'live' ? (current.forecast.breachProbability == null ? 'Backend forecast unavailable. Generate processed historical Parquet data to enable the model.' : 'Backend statistical model. Not a guaranteed prediction.') : 'Illustrative forecast until backend model is connected.'}</div>
   </section>;
 }
 
-function Portfolio({ current }) {
+function Portfolio({ current, source }) {
   const p = current.portfolio;
   const exposure = p.exposure || [];
   const colors = ['#69e4c5', '#598ed9', '#dcba78', '#a07ed1'];
   return <section className="panel portfolio-panel" id="portfolio">
-    <SectionTitle eyebrow="POSITION INTELLIGENCE" title="Exposure X-Ray" icon={Layers} aside={<span className="sample-tag">SAMPLE PORTFOLIO</span>} />
-    <div className="exposure-main"><div><span className="muted-label">UNREALISED P&L</span><strong className={p.pnl < 0 ? 'text-danger' : 'text-mint'}>{signedUsd(p.pnl)}</strong></div><div><span className="muted-label">GROSS LEVERAGE</span><strong>{p.leverage == null ? '—' : `${fmt(p.leverage,2)}×`}</strong></div></div>
-    <div className="exposure-bar">{exposure.map((position, i) => <span key={i} style={{ width: `${position.share == null ? 100/exposure.length : position.share * 100}%`, background: colors[i%colors.length] }} />)}</div>
+    <SectionTitle eyebrow="POSITION INTELLIGENCE" title="Exposure X-Ray" icon={Layers} aside={<span className="sample-tag">{source === 'live' ? 'FICTIONAL BACKEND ACCOUNT' : 'SAMPLE PORTFOLIO'}</span>} />
+    <div className="exposure-main"><div><span className="muted-label">UNREALISED P&L</span><strong className={p.pnl < 0 ? 'text-danger' : 'text-mint'}>{signedUsd(p.pnl)}</strong></div><div><span className="muted-label">NET LEVERAGE</span><strong>{p.leverage == null ? '—' : `${fmt(p.leverage,2)}×`}</strong></div></div>
+    <div className="exposure-bar">{exposure.length ? exposure.map((position, i) => <span key={i} style={{ width: `${position.share == null ? 100/exposure.length : position.share * 100}%`, background: colors[i%colors.length] }} />) : <span style={{ width: '100%', background: colors[0], opacity: 0.5 }}/>}</div>
     <div className="exposure-rows">{exposure.map((position, i) => <div className="exposure-row" key={`${position.pair}-${i}`}><span className="exposure-name"><i style={{ background: colors[i % colors.length] }}/>{position.pair}</span><span className="exposure-side">{position.side}</span><b>{usd(position.notional)}</b></div>)}</div>
+    {source === 'live' && !p.breakdownAvailable && <div className="model-note"><Info size={14}/> Aggregate net notional: {usd(p.notional)}. FastAPI does not yet publish per-position breakdowns.</div>}
     <div className="margin-health"><div><ShieldAlert size={17}/><span>Margin utilisation</span></div><strong>{p.equity && p.maintenanceMargin != null ? `${Math.round(p.maintenanceMargin / p.equity * 100)}%` : '—'}</strong></div>
     <div className="margin-health-bar"><span style={{ width: `${p.equity ? Math.min(100,p.maintenanceMargin/p.equity*100) : 0}%`, background: p.buffer < 10000 ? '#ff777d' : '#f3bd69' }} /></div>
   </section>;
@@ -209,43 +212,53 @@ function Portfolio({ current }) {
 
 function TideTable({ current, source }) {
   const rows = current.tideTable || [];
-  return <section className="panel tide-panel"><div className="tide-title"><span><Waves size={16}/> MARKET TIDE TABLE</span><small>{source === 'live' ? 'Backend historical pattern' : 'Illustrative window preview'}</small></div><div className="tide-hours">{rows.map((r) => <div key={r.hour} className="tide-hour"><span>{r.hour}</span><div className={`tide-cell ${r.risk.toLowerCase()}`}/><small>{r.risk}</small></div>)}</div></section>;
+  return <section className="panel tide-panel"><div className="tide-title"><span><Waves size={16}/> MARKET TIDE TABLE</span><small>{source === 'live' ? 'Backend feed' : 'Illustrative window preview'}</small></div>{rows.length ? <div className="tide-hours">{rows.map((r) => <div key={r.hour} className="tide-hour"><span>{r.hour}</span><div className={`tide-cell ${r.risk.toLowerCase()}`}/><small>{r.risk}</small></div>)}</div> : <div className="model-note"><Info size={14}/> Tide-hour risk data is not included in this API stream yet.</div>}</section>;
 }
 
-function Protection({ current, source, onProtect, protectionResult, firstCriticalAt }) {
+function Protection({ current, source, backendSource, onProtect, onClearResult, onResetRace, protectionResult, protectionRace, actionPending, firstCriticalAt }) {
   const [action, setAction] = useState('reduce_50');
   const [judgeMode, setJudgeMode] = useState(false);
   const [judgeActionAt, setJudgeActionAt] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   useEffect(() => { setJudgeActionAt(null); setSubmitted(false); }, [current.pair]);
+  useEffect(() => {
+    const ts = protectionResult?.protection?.judge?.acted_at;
+    if (protectionResult?.judgeMode && protectionResult.approved && ts) setJudgeActionAt(ts);
+  }, [protectionResult]);
   const p = current.portfolio;
   const selectedNotional = p.exposure?.find((position) => normalisePair(position.pair) === normalisePair(current.pair))?.notional ?? p.notional ?? 0;
   const baseLoss = Math.abs(selectedNotional) * 0.02;
-  const fraction = action === 'close_all' ? 1 : action === 'reduce_50' ? 0.5 : 0;
+  const fraction = action === 'close_pair' ? 1 : action === 'reduce_50' ? 0.5 : 0;
   const adjustedLoss = baseLoss * (1 - fraction);
-  const tradeNotional = action === 'close_all' ? p.notional : selectedNotional * fraction;
+  const tradeNotional = selectedNotional * fraction;
   const fees = (tradeNotional || 0) * 0.0001;
   const demoBefore = p.buffer - baseLoss;
   const demoAfter = p.buffer - adjustedLoss - fees;
-  const judgeGapMinutes = firstCriticalAt && judgeActionAt ? Math.round((Date.parse(judgeActionAt) - Date.parse(firstCriticalAt)) / 60000) : null;
+  const redAt = protectionResult?.protection?.red_at || firstCriticalAt;
+  const judgeGapMinutes = redAt && judgeActionAt ? Math.round((Date.parse(judgeActionAt) - Date.parse(redAt)) / 60000) : null;
+  const backendComparison = source === 'live' && protectionResult?.before && protectionResult?.portfolio;
+  const backendVerdict = protectionResult?.review || protectionResult;
 
   function submit() {
     setSubmitted(true);
-    if (judgeMode) setJudgeActionAt(current.timestamp);
-    onProtect(action);
+    if (judgeMode && source !== 'live' && action !== 'none') setJudgeActionAt(current.timestamp);
+    onProtect(action, judgeMode);
   }
 
   return <section className="panel protection-panel" id="protection">
     <SectionTitle eyebrow="PROTECTION LAB" title="Choose your defence" icon={Shield} aside={<Badge tone="safe">PAPER ONLY</Badge>} />
-    <div className="protection-intro"><p>Compare paper protection actions against the <b>same hypothetical additional 2% adverse move in {marketById(current.pair).label}</b>. All three sample positions remain visible above.</p><div className="judge-toggle"><span><Crosshair size={16}/> Judge vs Coccinelle</span><button className={`switch ${judgeMode ? 'on' : ''}`} role="switch" aria-checked={judgeMode} onClick={() => {setJudgeMode(!judgeMode);setJudgeActionAt(null);}}><span/></button></div></div>
+    <div className="protection-intro"><p>{source === 'live' ? <>Run a <b>paper-only action at the backend's current FX quote</b>. Preview calls the Risk Officer; Judge Mode records your action so the backend can compare it with a first-red-signal strategy.</> : <>Compare paper actions against the <b>same illustrative additional 2% adverse move in {marketById(current.pair).label}</b>.</>}</p><div className="judge-toggle"><span><Crosshair size={16}/> Judge vs Coccinelle</span><button className={`switch ${judgeMode ? 'on' : ''}`} role="switch" aria-checked={judgeMode} onClick={() => {setJudgeMode(!judgeMode);setJudgeActionAt(null);setSubmitted(false);onClearResult();}}><span/></button></div></div>
     <div className="action-row">
-      {[{ id: 'none', title: 'Hold position', subtitle: 'No reduction', icon: Shield },{ id: 'reduce_50', title: 'Reduce by 50%', subtitle: 'Selected pair only', icon: SlidersHorizontal },{ id: 'close_all', title: 'Close all positions', subtitle: 'Exit entire portfolio', icon: ShieldAlert }].map(({ id, title, subtitle, icon: Icon }) => <button key={id} className={`strategy-option ${action === id ? 'selected' : ''}`} onClick={() => {setAction(id);setSubmitted(false);}}><Icon size={18}/><b>{title}</b><small>{subtitle}</small><span className="strategy-radio">{action === id && <span/>}</span></button>)}
+      {[{ id: 'none', title: 'Hold position', subtitle: 'No reduction', icon: Shield },{ id: 'reduce_50', title: 'Reduce by 50%', subtitle: 'Selected pair only', icon: SlidersHorizontal },{ id: 'close_pair', title: 'Close selected pair', subtitle: 'Exit this FX exposure', icon: ShieldAlert }].map(({ id, title, subtitle, icon: Icon }) => <button key={id} type="button" disabled={actionPending} className={`strategy-option ${action === id ? 'selected' : ''}`} onClick={() => {setAction(id);setSubmitted(false);onClearResult();}}><Icon size={18}/><b>{title}</b><small>{subtitle}</small><span className="strategy-radio">{action === id && <span/>}</span></button>)}
     </div>
-    <div className="compare-head"><span>STRESS TEST: ADDITIONAL −2.0% {marketById(current.pair).label} SHOCK</span><span>BEFORE / AFTER</span></div>
-    <div className="compare-grid"><div className="compare-card"><small>UNPROTECTED LOSS</small><strong className="text-danger">−{usd(baseLoss)}</strong><span>Estimated buffer: {usd(demoBefore)}</span></div><div className="compare-arrow"><ArrowRight size={20}/></div><div className="compare-card protected"><small>WITH SELECTED ACTION</small><strong className="text-mint">−{usd(adjustedLoss + fees)}</strong><span>Estimated buffer: {usd(demoAfter)}</span></div></div>
-    <div className="protection-bottom"><div className="model-note"><Info size={14}/>{source === 'live' && protectionResult ? 'Backend protection result received.' : 'Illustrative linear shock estimate with 1bp trading cost; backend will calculate final margin effects.'}</div><button className="protect-button" onClick={submit}><Shield size={16}/>{judgeMode ? 'PROTECT NOW' : 'SIMULATE ACTION'}<ArrowRight size={17}/></button></div>
-    {submitted && <div className="action-confirmation"><Check size={16}/>{source === 'live' ? 'Protection request sent to risk officer.' : 'Demo action recorded. Live execution remains disabled.'}{judgeActionAt && <span> · Judge acted at {time(judgeActionAt)} UTC</span>}</div>}
-    {judgeMode && judgeActionAt && <div className="judge-comparison"><div><small>JUDGE REACTION</small><b>{time(judgeActionAt)} UTC</b></div><div><small>FIRST CRITICAL SIGNAL</small><b>{firstCriticalAt ? `${time(firstCriticalAt)} UTC` : 'Waiting for red alert'}</b></div><div><small>REACTION DIFFERENCE</small><b className={judgeGapMinutes != null && judgeGapMinutes > 0 ? 'text-danger' : 'text-mint'}>{judgeGapMinutes == null ? 'Pending' : judgeGapMinutes > 0 ? `${judgeGapMinutes} min later` : judgeGapMinutes < 0 ? `${Math.abs(judgeGapMinutes)} min earlier` : 'Same minute'}</b></div></div>}
+    <div className="compare-head"><span>{backendComparison ? `BACKEND QUOTE · ${time(protectionResult.as_of)} UTC` : `ILLUSTRATIVE STRESS: ADDITIONAL −2.0% ${marketById(current.pair).label} SHOCK`}</span><span>BEFORE / AFTER</span></div>
+    <div className="compare-grid"><div className="compare-card"><small>{backendComparison ? 'BUFFER BEFORE ACTION' : 'UNPROTECTED LOSS'}</small><strong className="text-danger">{backendComparison ? usd(protectionResult.before.margin_buffer) : `−${usd(baseLoss)}`}</strong><span>{backendComparison ? `Equity: ${usd(protectionResult.before.equity)}` : `Estimated buffer: ${usd(demoBefore)}`}</span></div><div className="compare-arrow"><ArrowRight size={20}/></div><div className="compare-card protected"><small>{backendComparison ? 'BUFFER AFTER ACTION' : 'WITH SELECTED ACTION'}</small><strong className="text-mint">{backendComparison ? usd(protectionResult.portfolio.margin_buffer) : `−${usd(adjustedLoss + fees)}`}</strong><span>{backendComparison ? `Spread cost: ${usd(protectionResult.cost, 2)}` : `Estimated buffer: ${usd(demoAfter)}`}</span></div></div>
+    {backendComparison && protectionResult.forecast && <div className="model-note"><Waves size={14}/> 24h breach probability on shared paths: {Math.round(protectionResult.forecast.before.breach_probability * 100)}% before → {Math.round(protectionResult.forecast.after.breach_probability * 100)}% after.</div>}
+    <div className="protection-bottom"><div className="model-note"><Info size={14}/>{backendComparison ? 'Actual paper fills at bid/ask, Risk Officer reviewed.' : source === 'live' && judgeMode ? 'The 2% shock cards are illustrative. Real judge-vs-Coccinelle outcomes are shown in the backend comparison below.' : 'Illustrative linear shock estimate with 1bp trading cost. Backend previews use real quote spreads.'}</div><button className="protect-button" onClick={submit} disabled={actionPending}><Shield size={16}/>{actionPending ? 'CHECKING RISK...' : judgeMode ? 'PROTECT NOW' : 'SIMULATE ACTION'}<ArrowRight size={17}/></button></div>
+    {submitted && protectionResult && <div className="action-confirmation">{protectionResult.error ? <ShieldAlert size={16}/> : <Check size={16}/>} {protectionResult.error ? `Backend error: ${protectionResult.error}` : protectionResult.held ? 'Holding position — no trade submitted.' : protectionResult.demo ? 'Demo action recorded; no order placed.' : backendVerdict?.approved ? (protectionResult.judgeMode ? 'Approved: judge paper protection recorded.' : 'Risk officer approved this paper preview. No portfolio mutation.') : `Risk officer vetoed the action: ${(backendVerdict?.reasons || ['See backend response']).join('; ')}`}{judgeActionAt && <span> · Judge acted at {time(judgeActionAt)} UTC</span>}</div>}
+    {source !== 'live' && judgeMode && judgeActionAt && <div className="judge-comparison"><div><small>JUDGE REACTION</small><b>{time(judgeActionAt)} UTC</b></div><div><small>FIRST CRITICAL SIGNAL</small><b>{redAt ? `${time(redAt)} UTC` : 'Waiting for red alert'}</b></div><div><small>REACTION DIFFERENCE</small><b className={judgeGapMinutes != null && judgeGapMinutes > 0 ? 'text-danger' : 'text-mint'}>{judgeGapMinutes == null ? 'Pending' : judgeGapMinutes > 0 ? `${judgeGapMinutes} min later` : judgeGapMinutes < 0 ? `${Math.abs(judgeGapMinutes)} min earlier` : 'Same minute'}</b></div></div>}
+    {source === 'live' && current.pair === 'USDJPY' && (judgeMode || protectionRace?.red_at || protectionRace?.judge) &&
+      <RaceComparison race={protectionRace} backendSource={backendSource} onReset={() => {setJudgeActionAt(null);setSubmitted(false);onResetRace();}} resetting={actionPending}/>}
   </section>;
 }
 
@@ -253,8 +266,8 @@ function ReplayControls({ stream }) {
   const { source, current, paused, speed, playPause, changeSpeed, jumpTo, reset, mockIndex, totalMockFrames, seek } = stream;
   return <div className="replay-dock">
     <div className="replay-ident"><div className="replay-icon"><Radio size={18}/></div><div><strong>{source === 'live' ? 'LIVE REPLAY' : 'HISTORICAL REPLAY'}</strong><span>{marketById(current.pair).label} <i/> {time(current.timestamp)} UTC</span></div></div>
-    <div className="replay-transport"><button className="icon-control" onClick={reset} title="Restart replay" aria-label="Restart replay"><RotateCcw size={18}/></button><button className="play-control" onClick={playPause} title={paused ? 'Play replay' : 'Pause replay'} aria-label={paused ? 'Play replay' : 'Pause replay'}>{paused ? <Play size={19} fill="currentColor"/> : <Pause size={19} fill="currentColor"/>}</button><div className="replay-slider"><input aria-label="Replay position" type="range" min="0" max={totalMockFrames - 1} value={mockIndex} disabled={source === 'live'} onChange={(e) => seek(Number(e.target.value))}/><div className="replay-track-label"><span>12:00</span><span>15:00 UTC</span></div></div></div>
-    <div className="replay-options"><button className="jump-button" onClick={() => jumpTo('13:24')}><Zap size={14}/> Before the storm</button><button className="strike-button" onClick={() => { stream.selectPair('USDJPY'); jumpTo('13:40'); }} title="Jump to the critical USD/JPY move"><CloudLightning size={14}/> Strike moment</button><div className="speed-buttons">{[1, 5, 20].map((v) => <button key={v} className={speed === v ? 'current' : ''} onClick={() => changeSpeed(v)}>{v}×</button>)}</div></div>
+    <div className="replay-transport"><button className="icon-control" onClick={reset} title="Restart replay" aria-label="Restart replay"><RotateCcw size={18}/></button><button className="play-control" onClick={playPause} title={paused ? 'Play replay' : 'Pause replay'} aria-label={paused ? 'Play replay' : 'Pause replay'}>{paused ? <Play size={19} fill="currentColor"/> : <Pause size={19} fill="currentColor"/>}</button><div className="replay-slider"><input aria-label="Replay position" type="range" min="0" max={totalMockFrames - 1} value={mockIndex} disabled={source === 'live'} title={source === 'live' ? 'Backend replay uses jump controls' : 'Scrub replay'} onChange={(e) => seek(Number(e.target.value))}/><div className="replay-track-label"><span>12:00</span><span>15:00 UTC</span></div></div></div>
+    <div className="replay-options"><button className="jump-button" onClick={() => jumpTo('13:34')}><Zap size={14}/> Before the storm</button><button className="strike-button" onClick={() => { stream.selectPair('USDJPY'); jumpTo('13:38', 'USDJPY'); }} title="Jump to the first real red USD/JPY signal"><CloudLightning size={14}/> Strike moment</button><div className="speed-buttons">{[1, 5, 20].map((v) => <button key={v} className={speed === v ? 'current' : ''} onClick={() => changeSpeed(v)}>{v}×</button>)}</div></div>
   </div>;
 }
 
@@ -262,18 +275,19 @@ export default function App() {
   const stream = useMarketStream();
   const { activeSection, navigateTo } = useActiveSection();
   const { current, source, frames } = stream;
-  const firstCriticalAt = frames.find((frame) => frame.storm.score >= 80)?.timestamp;
+  const firstCriticalAt = frames.find((frame) => frame.storm.level === 'CRITICAL')?.timestamp;
   return <div className="app-shell" id="overview">
-    <Sidebar source={stream.connectionSource} selectedPair={stream.selectedPair} onPairChange={stream.selectPair} pairSnapshots={stream.pairSnapshots} activeSection={activeSection} onNavigate={navigateTo}/>
+    <Sidebar source={stream.connectionSource} backendSource={stream.backendSource} selectedPair={stream.selectedPair} onPairChange={stream.selectPair} pairSnapshots={stream.pairSnapshots} activeSection={activeSection} onNavigate={navigateTo}/>
     <main className="app-main">
-      <Topbar source={source}/>
+      <Topbar source={source} backendSource={stream.backendSource}/>
       <div className="dashboard-content">
-        <div className="page-intro"><div><div className="eyebrow-line"><span className="eyebrow-accent"/> RISK INTELLIGENCE PLATFORM <span className="sep-dot">•</span> 30 JULY 2026</div><h1>Storm <span>Command Centre</span></h1><p>Monitoring USD/JPY, EUR/USD and USD/SGD — three SGX spot markets, one portfolio.</p></div><div className="page-intro-side"><div className="source-badge"><Database size={15}/> {source === 'live' ? 'SGX STREAM · BACKEND' : 'SGX HISTORICAL DATA · DEMO'}</div><small>{source === 'live' ? 'Live historical replay via FastAPI' : 'Real quotes · Illustrative risk & model values'}</small></div></div>
+        <div className="page-intro"><div><div className="eyebrow-line"><span className="eyebrow-accent"/> RISK INTELLIGENCE PLATFORM <span className="sep-dot">•</span> 30 JULY 2026</div><h1>Storm <span>Command Centre</span></h1><p>Monitoring USD/JPY, EUR/USD and USD/SGD — three SGX spot markets, one portfolio.</p></div><div className="page-intro-side"><div className="source-badge"><Database size={15}/> {source === 'live' ? (stream.backendSource === 'mock' ? 'SYNTHETIC API STREAM' : 'SGX ENGINE · HISTORICAL REPLAY') : 'SGX HISTORICAL DATA · DEMO'}</div><small>{source === 'live' ? 'FastAPI historical market replay; fictional account' : 'Real quotes · Illustrative risk & model values'}</small></div></div>
+        {stream.controlError && <div className="action-confirmation" role="alert"><ShieldAlert size={15}/> Replay control failed: {stream.controlError}</div>}
         <StatCards current={current} source={source}/>
-        <div className="dashboard-grid main-row"><MarketChart frames={frames} current={current} source={source}/><RiskInsights current={current} source={source}/></div>
-        <div className="dashboard-grid secondary-row"><Forecast current={current} source={source}/><Portfolio current={current}/></div>
+        <div className="dashboard-grid main-row"><MarketChart frames={frames} current={current} source={source} backendSource={stream.backendSource}/><RiskInsights current={current} source={source} activeAlert={stream.activeAlert}/></div>
+        <div className="dashboard-grid secondary-row"><Forecast current={current} source={source}/><Portfolio current={current} source={source}/></div>
         <TideTable current={current} source={source}/>
-        <Protection current={current} source={source} onProtect={stream.protect} protectionResult={stream.protectionResult} firstCriticalAt={firstCriticalAt}/>
+        <Protection current={current} source={source} backendSource={stream.backendSource} onProtect={stream.protect} onClearResult={stream.clearProtectionResult} onResetRace={stream.resetProtectionRace} protectionResult={stream.protectionResult} protectionRace={stream.protectionRace} actionPending={stream.actionPending} firstCriticalAt={firstCriticalAt}/>
         <footer className="page-footer"><span><Bug size={15}/> COCCINELLE</span><span>Simulated portfolios and margin models are for demonstration only. No live orders are placed.</span><span>DURHACK 2026 · SGX</span></footer>
       </div>
     </main>
