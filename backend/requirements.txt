@@ -1,0 +1,13 @@
+fastapi==0.162.5
+uvicorn[standard]==0.54.0
+anthropic==2.8.0
+
+# engine (Meryem's data loader + streaming risk engine)
+numpy==2.2.6
+pandas==2.3.3
+pyarrow==25.0.1
+
+# dev / test
+pytest==9.2.0
+pytest-timeout==2.4.0
+httpx2==2.14.0

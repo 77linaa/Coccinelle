@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# "." for the sentinel package, ".." for Meryem's top-level engine package
+pythonpath = [".", ".."]
+testpaths = ["tests"]
+timeout = 30
